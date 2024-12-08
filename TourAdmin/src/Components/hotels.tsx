@@ -45,7 +45,7 @@ function Hotels() {
 
   const fetchDestinations = async () => {
     try {
-      const response = await axios.get('http://localhost:3000/api/destinations')
+      const response = await axios.get('http://localhost:3000/api/v1/destinations')
       setDestinations(response.data.data.destinations)
     } catch (error) {
       message.error('Failed to fetch destinations')
@@ -54,7 +54,7 @@ function Hotels() {
 
   const handleDelete = async (id: string) => {
     try {
-      await axios.delete(`http://localhost:3000/api/hotels/${id}`)
+      await axios.delete(`http://localhost:3000/api/v1/hotels/${id}`)
       message.success('Hotel deleted successfully')
       fetchHotels()
     } catch (error) {
@@ -69,6 +69,12 @@ function Hotels() {
       name: record.name,
       description: record.description,
       destination: record.destination._id,
+      photos: record.photos.map((url: string, index: number) => ({
+        uid: index,
+        name: `Photo ${index + 1}`,
+        status: 'done',
+        url
+      }))
     })
     setIsModalVisible(true)
   }
@@ -138,29 +144,42 @@ function Hotels() {
 
   const handleSubmit = async (values: any) => {
     try {
-      const formData = new FormData()
-      formData.append('name', values.name)
-      formData.append('description', values.description)
-      formData.append('destination', values.destination)
-      formData.append('location[lat]', selectedLocation.lat.toString())
-      formData.append('location[lng]', selectedLocation.lng.toString())
+      const photos: string[] = []
       
-      if (values.photos?.fileList) {
-        for (const file of values.photos.fileList) {
+      // Handle both new uploads and existing photos
+      if (values.photos) {
+        const fileList = Array.isArray(values.photos) ? values.photos : values.photos.fileList
+        
+        for (const file of fileList) {
           if (file.originFileObj) {
+            // This is a new file upload
             const photoFormData = new FormData()
             photoFormData.append('image', file.originFileObj)
-            const uploadRes = await axios.post('/api/upload', photoFormData)
-            formData.append('photos', uploadRes.data.data.imageUrl)
+            const uploadRes = await axios.post('http://localhost:3000/api/v1/common/upload', photoFormData)
+            photos.push(uploadRes.data.data.imageUrl)
+          } else if (file.url) {
+            // This is an existing photo
+            photos.push(file.url)
           }
         }
       }
 
+      const hotelData = {
+        name: values.name,
+        description: values.description,
+        destination: values.destination,
+        location: {
+          lat: selectedLocation.lat,
+          lng: selectedLocation.lng
+        },
+        photos
+      }
+
       if (editingHotel) {
-        await axios.patch(`/api/hotels/${editingHotel._id}`, formData)
+        await axios.patch(`http://localhost:3000/api/v1/hotels/${editingHotel._id}`, hotelData)
         message.success('Hotel updated successfully')
       } else {
-        await axios.post('/api/hotels', formData)
+        await axios.post('http://localhost:3000/api/v1/hotels', hotelData)
         message.success('Hotel added successfully')
       }
 
@@ -250,7 +269,17 @@ function Hotels() {
                   return e?.fileList
                 }}
               >
-                <Upload multiple listType="picture" beforeUpload={() => false}>
+                <Upload 
+                  multiple 
+                  listType="picture" 
+                  beforeUpload={() => false}
+                  defaultFileList={editingHotel?.photos?.map((url: string, index: number) => ({
+                    uid: index,
+                    name: `Photo ${index + 1}`,
+                    status: 'done',
+                    url
+                  }))}
+                >
                   <Button icon={<UploadOutlined />}>Upload Photos</Button>
                 </Upload>
               </Form.Item>

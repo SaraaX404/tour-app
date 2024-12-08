@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
-import { Table, Button, Modal, Form, Input, Upload, Space, Card, message, Popconfirm } from 'antd'
+import { Table, Button, Modal, Space, Card, message, Popconfirm, Upload } from 'antd'
 import { PlusOutlined, UploadOutlined, EditOutlined, DeleteOutlined } from '@ant-design/icons'
+import { useForm, useFieldArray, Controller } from 'react-hook-form'
 import AppLayout from './layout'
 import { MapContainer, TileLayer, Marker, useMapEvents } from 'react-leaflet'
 import 'leaflet/dist/leaflet.css'
@@ -40,14 +41,36 @@ interface Tour {
   destinations: Destination[]
 }
 
+interface FormInputs {
+  name: string
+  description: string
+  destinations: {
+    name: string
+    description: string
+    photos: any
+  }[]
+}
+
 function Tours() {
   const [isModalVisible, setIsModalVisible] = useState(false)
-  const [form] = Form.useForm()
   const [selectedDestinationIndex, setSelectedDestinationIndex] = useState<number | null>(null)
   const [destinationLocations, setDestinationLocations] = useState<{[key: number]: {lat: number, lng: number}}>({})
   const [tours, setTours] = useState<Tour[]>([])
   const [loading, setLoading] = useState(false)
   const [editingTour, setEditingTour] = useState<Tour | null>(null)
+
+  const { control, handleSubmit, reset } = useForm<FormInputs>({
+    defaultValues: {
+      name: '',
+      description: '',
+      destinations: []
+    }
+  })
+
+  const { fields, append, remove } = useFieldArray({
+    control,
+    name: 'destinations'
+  })
 
   useEffect(() => {
     fetchTours()
@@ -77,13 +100,13 @@ function Tours() {
 
   const handleEdit = (record: Tour) => {
     setEditingTour(record)
-    form.setFieldsValue({
+    reset({
       name: record.name,
       description: record.description,
       destinations: record.destinations.map(dest => ({
         name: dest.name,
         description: dest.description,
-        hotels: dest.hotels
+        photos: []
       }))
     })
     const locations: {[key: number]: {lat: number, lng: number}} = {}
@@ -154,38 +177,43 @@ function Tours() {
     setDestinationLocations({})
     setSelectedDestinationIndex(null)
     setEditingTour(null)
-    form.resetFields()
+    reset()
   }
 
-  const handleModalOk = async () => {
+  const onSubmit = async (data: FormInputs) => {
     try {
-      const values = await form.validateFields()
-      
-      const destinationsData = await Promise.all(values.destinations.map(async (dest: any, index: number) => {
-        const formData = new FormData()
-        formData.append('name', dest.name)
-        formData.append('description', dest.description)
-        formData.append('location[lat]', destinationLocations[index]?.lat.toString() || '51.505')
-        formData.append('location[lng]', destinationLocations[index]?.lng.toString() || '-0.09')
-        
+      const destinationsData = await Promise.all(data.destinations.map(async (dest: any, index: number) => {
+        // Upload photos first
+        const photos: string[] = []
         if (dest.photos?.fileList) {
           for (const file of dest.photos.fileList) {
             if (file.originFileObj) {
               const photoFormData = new FormData()
               photoFormData.append('image', file.originFileObj)
               const uploadRes = await axios.post('http://localhost:3000/api/v1/common/upload', photoFormData)
-              formData.append('photos', uploadRes.data.data.imageUrl)
+              photos.push(uploadRes.data.data.imageUrl)
             }
           }
         }
 
-        const destResponse = await axios.post('http://localhost:3000/api/v1/destinations', formData)
+        // Create destination with JSON data
+        const destinationData = {
+          name: dest.name,
+          description: dest.description,
+          location: {
+            lat: destinationLocations[index]?.lat || 51.505,
+            lng: destinationLocations[index]?.lng || -0.09
+          },
+          photos
+        }
+
+        const destResponse = await axios.post('http://localhost:3000/api/v1/destinations', destinationData)
         return destResponse.data.data.destination._id
       }))
 
       const tourData = {
-        name: values.name,
-        description: values.description,
+        name: data.name,
+        description: data.description,
         destinations: destinationsData
       }
 
@@ -198,7 +226,7 @@ function Tours() {
       }
 
       setIsModalVisible(false)
-      form.resetFields()
+      reset()
       setDestinationLocations({})
       setSelectedDestinationIndex(null)
       setEditingTour(null)
@@ -226,106 +254,106 @@ function Tours() {
           <Modal
             title={editingTour ? "Edit Tour" : "Add New Tour"}
             visible={isModalVisible}
-            onOk={handleModalOk}
+            onOk={handleSubmit(onSubmit)}
             onCancel={() => {
               setIsModalVisible(false)
               setEditingTour(null)
-              form.resetFields()
+              reset()
             }}
             width={800}
           >
-            <Form form={form} layout="vertical">
-              <Form.Item
-                name="name"
-                label="Tour Name"
-                rules={[{ required: true }]}
-              >
-                <Input />
-              </Form.Item>
+            <form onSubmit={handleSubmit(onSubmit)}>
+              <div style={{ marginBottom: 16 }}>
+                <label>Tour Name</label>
+                <Controller
+                  name="name"
+                  control={control}
+                  rules={{ required: true }}
+                  render={({ field }: { field: any }) => <input {...field} style={{ width: '100%', padding: '4px 11px' }} />}
+                />
+              </div>
 
-              <Form.Item
-                name="description"
-                label="Tour Description"
-                rules={[{ required: true }]}
-              >
-                <Input.TextArea />
-              </Form.Item>
+              <div style={{ marginBottom: 16 }}>
+                <label>Tour Description</label>
+                <Controller
+                  name="description"
+                  control={control}
+                  rules={{ required: true }}
+                  render={({ field }: { field: any }) => <textarea {...field} style={{ width: '100%', padding: '4px 11px' }} />}
+                />
+              </div>
 
-              <Form.List name="destinations">
-                {(fields, { add, remove }) => (
-                  <div>
-                    {fields.map((field, index) => (
-                      <Card key={field.key} title={`Destination ${index + 1}`} style={{ marginBottom: 16 }}>
-                        <Form.Item
-                          {...field}
-                          required={false}
+              <div>
+                {fields.map((field: any, index: number) => (
+                  <Card key={field.id} title={`Destination ${index + 1}`} style={{ marginBottom: 16 }}>
+                    <div style={{ marginBottom: 16 }}>
+                      <label>Destination Name</label>
+                      <Controller
+                        name={`destinations.${index}.name`}
+                        control={control}
+                        render={({ field }: { field: any }) => <input {...field} style={{ width: '100%', padding: '4px 11px' }} />}
+                      />
+                    </div>
+
+                    <div style={{ marginBottom: 16 }}>
+                      <label>Destination Description</label>
+                      <Controller
+                        name={`destinations.${index}.description`}
+                        control={control}
+                        render={({ field }: { field: any }) => <textarea {...field} style={{ width: '100%', padding: '4px 11px' }} />}
+                      />
+                    </div>
+
+                    <div style={{ marginBottom: 16 }}>
+                      <label>Destination Photos</label>
+                      <Controller
+                        name={`destinations.${index}.photos`}
+                        control={control}
+                        render={({ field }: { field: any }) => (
+                          <Upload
+                            {...field}
+                            multiple
+                            listType="picture"
+                            onChange={(info: any) => field.onChange(info)}
+                          >
+                            <Button icon={<UploadOutlined />}>Upload Photos</Button>
+                          </Upload>
+                        )}
+                      />
+                    </div>
+
+                    <div style={{ marginBottom: 16 }}>
+                      <label>Location (Click on map to set location)</label>
+                      <div style={{ height: '400px', marginBottom: '24px' }}>
+                        <Button 
+                          onClick={() => setSelectedDestinationIndex(index)}
+                          type={selectedDestinationIndex === index ? 'primary' : 'default'}
+                          style={{ marginBottom: '8px' }}
                         >
-                          <Space direction="vertical" style={{ width: '100%' }}>
-                            <Form.Item
-                              name={[field.name, 'name']}
-                              label="Destination Name"
-                              rules={[{ required: true, message: 'Destination name is required' }]}
-                            >
-                              <Input />
-                            </Form.Item>
-                            
-                            <Form.Item
-                              name={[field.name, 'description']}
-                              label="Destination Description"
-                              rules={[{ required: true, message: 'Destination description is required' }]}
-                            >
-                              <Input.TextArea />
-                            </Form.Item>
+                          {selectedDestinationIndex === index ? 'Currently Setting Location' : 'Set Location'}
+                        </Button>
+                        <MapContainer
+                          center={destinationLocations[index] || { lat: 51.505, lng: -0.09 }}
+                          zoom={13}
+                          style={{ height: '100%', width: '100%' }}
+                        >
+                          <TileLayer
+                            url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+                            attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+                          />
+                          <LocationMarker />
+                        </MapContainer>
+                      </div>
+                    </div>
 
-                            <Form.Item
-                              name={[field.name, 'photos']}
-                              label="Destination Photos"
-                              valuePropName="fileList"
-                              getValueFromEvent={(e) => {
-                                if (Array.isArray(e)) return e
-                                return e?.fileList
-                              }}
-                            >
-                              <Upload multiple listType="picture">
-                                <Button icon={<UploadOutlined />}>Upload Photos</Button>
-                              </Upload>
-                            </Form.Item>
-
-                            <Form.Item label="Location (Click on map to set location)">
-                              <div style={{ height: '400px', marginBottom: '24px' }}>
-                                <Button 
-                                  onClick={() => setSelectedDestinationIndex(index)}
-                                  type={selectedDestinationIndex === index ? 'primary' : 'default'}
-                                  style={{ marginBottom: '8px' }}
-                                >
-                                  {selectedDestinationIndex === index ? 'Currently Setting Location' : 'Set Location'}
-                                </Button>
-                                <MapContainer
-                                  center={destinationLocations[index] || { lat: 51.505, lng: -0.09 }}
-                                  zoom={13}
-                                  style={{ height: '100%', width: '100%' }}
-                                >
-                                  <TileLayer
-                                    url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-                                    attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-                                  />
-                                  <LocationMarker />
-                                </MapContainer>
-                              </div>
-                            </Form.Item>
-
-                            <Button onClick={() => remove(field.name)}>Remove Destination</Button>
-                          </Space>
-                        </Form.Item>
-                      </Card>
-                    ))}
-                    <Button type="dashed" onClick={() => add()} block>
-                      Add Destination
-                    </Button>
-                  </div>
-                )}
-              </Form.List>
-            </Form>
+                    <Button onClick={() => remove(index)}>Remove Destination</Button>
+                  </Card>
+                ))}
+                <Button type="dashed" onClick={() => append({ name: '', description: '', photos: [] })} block>
+                  Add Destination
+                </Button>
+              </div>
+            </form>
           </Modal>
         </Space>
       </div>

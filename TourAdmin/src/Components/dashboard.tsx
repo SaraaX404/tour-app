@@ -1,81 +1,79 @@
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend } from 'recharts'
-import { Card, Row, Col, Statistic, Table } from 'antd'
-import { UserOutlined, DollarOutlined, TeamOutlined, GlobalOutlined } from '@ant-design/icons'
+import { useState, useEffect } from 'react'
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend } from 'recharts'
+import { Card, Row, Col, message } from 'antd'
 import AppLayout from './layout'
+import axios from 'axios'
 
 function Dashboard() {
+  const [stats, setStats] = useState({
+    totalTours: 0,
+    totalHotels: 0,
+    totalDestinations: 0
+  })
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    fetchDashboardData()
+  }, [])
+
+  const fetchDashboardData = async () => {
+    try {
+      setLoading(true)
+      
+      // Fetch tours count
+      const toursResponse = await axios.get('http://localhost:3000/api/v1/tours')
+      const totalTours = toursResponse.data.results
+
+      // Fetch destinations count
+      const destinationsResponse = await axios.get('http://localhost:3000/api/v1/destinations')
+      const totalDestinations = destinationsResponse.data.results
+
+      // Fetch hotels count (assuming hotels endpoint exists)
+      const hotelsResponse = await axios.get('http://localhost:3000/api/v1/hotels')
+      const totalHotels = hotelsResponse.data.results
+
+      setStats({
+        totalTours,
+        totalHotels,
+        totalDestinations
+      })
+
+    } catch (error) {
+      message.error('Failed to fetch statistics')
+    } finally {
+      setLoading(false)
+    }
+  }
+
   const chartData = [
-    { month: 'Jan', bookings: 65, revenue: 4000 },
-    { month: 'Feb', bookings: 78, revenue: 4800 },
-    { month: 'Mar', bookings: 90, revenue: 5200 },
-    { month: 'Apr', bookings: 81, revenue: 4900 },
-    { month: 'May', bookings: 95, revenue: 5800 },
+    {
+      name: 'Total Count',
+      tours: stats.totalTours,
+      hotels: stats.totalHotels,
+      destinations: stats.totalDestinations
+    }
   ]
 
-  const tourData = [
-    { key: '1', name: 'Paris Explorer', bookings: 45, revenue: 13500, rating: 4.8 },
-    { key: '2', name: 'Rome Adventure', bookings: 38, revenue: 11400, rating: 4.7 },
-    { key: '3', name: 'Tokyo Discovery', bookings: 42, revenue: 12600, rating: 4.9 },
-  ]
-
-  const columns = [
-    { title: 'Tour Name', dataIndex: 'name', key: 'name' },
-    { title: 'Bookings', dataIndex: 'bookings', key: 'bookings' },
-    { title: 'Revenue ($)', dataIndex: 'revenue', key: 'revenue' },
-    { title: 'Rating', dataIndex: 'rating', key: 'rating' },
-  ]
   return (
     <AppLayout>
       <div>
-        <Row gutter={16}>
-          <Col span={6}>
-            <Card>
-            <Statistic title="Total Bookings" value={409} prefix={<TeamOutlined />} />
-          </Card>
-        </Col>
-        <Col span={6}>
-          <Card>
-            <Statistic title="Revenue" value={89600} prefix={<DollarOutlined />} />
-          </Card>
-        </Col>
-        <Col span={6}>
-          <Card>
-            <Statistic title="Active Tours" value={12} prefix={<GlobalOutlined />} />
-          </Card>
-        </Col>
-        <Col span={6}>
-          <Card>
-            <Statistic title="Total Customers" value={892} prefix={<UserOutlined />} />
-          </Card>
-        </Col>
-      </Row>
-
-      <Row style={{ marginTop: '24px' }}>
-        <Col span={24}>
-          <Card title="Booking & Revenue Trends">
-            <LineChart width={1000} height={300} data={chartData}>
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="month" />
-              <YAxis yAxisId="left" />
-              <YAxis yAxisId="right" orientation="right" />
-              <Tooltip />
-              <Legend />
-              <Line yAxisId="left" type="monotone" dataKey="bookings" stroke="#8884d8" />
-              <Line yAxisId="right" type="monotone" dataKey="revenue" stroke="#82ca9d" />
-            </LineChart>
-          </Card>
-        </Col>
-      </Row>
-
-      <Row style={{ marginTop: '24px' }}>
-        <Col span={24}>
-          <Card title="Top Performing Tours">
-            <Table columns={columns} dataSource={tourData} />
-          </Card>
-        </Col>
-      </Row>
-        </div>
-
+        <Row style={{ marginTop: '24px' }}>
+          <Col span={24}>
+            <Card title="Tours, Hotels & Destinations Statistics" loading={loading}>
+              <BarChart width={1000} height={400} data={chartData}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis dataKey="name" />
+                <YAxis />
+                <Tooltip />
+                <Legend />
+                <Bar dataKey="tours" fill="#8884d8" name="Total Tours" />
+                <Bar dataKey="hotels" fill="#82ca9d" name="Total Hotels" />
+                <Bar dataKey="destinations" fill="#ffc658" name="Total Destinations" />
+              </BarChart>
+            </Card>
+          </Col>
+        </Row>
+      </div>
     </AppLayout>
   )
 }

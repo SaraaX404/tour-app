@@ -22,7 +22,12 @@ exports.createTour = catchAsync(async (req, res) => {
 
 // Get single tour
 exports.getTour = catchAsync(async (req, res) => {
-    const tour = await Tour.findById(req.params.id).populate('destinations');
+    const tour = await Tour.findById(req.params.id).populate({
+        path: 'destinations',
+        populate: {
+            path: 'hotels'
+        }
+    });
     if (!tour) {
         return res.status(404).json({
             status: 'fail',
