@@ -167,7 +167,7 @@ function Dashboard() {
           <Text>Filter Radius: {filterRadius} km</Text>
           <input
             type="range"
-            min="50"
+            min="5"
             max="1000"
             value={filterRadius}
             onChange={(e) => setFilterRadius(parseInt(e.target.value))}
