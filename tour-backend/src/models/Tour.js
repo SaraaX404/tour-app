@@ -17,6 +17,10 @@ const tourSchema = new Schema({
     destinations: [{
         type: Schema.Types.ObjectId,
         ref: 'Destination'
+    }],
+    reviews: [{
+        type: Schema.Types.ObjectId,
+        ref: 'Review'
     }]
 });
 

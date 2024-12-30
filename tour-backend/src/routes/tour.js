@@ -6,7 +6,9 @@ const {
     getTour,
     updateTour,
     deleteTour,
+    createReview,
     addDestination,
+    getReviews,
     addHotel
 } = require('../controllers/tour');
 
@@ -20,6 +22,12 @@ router.route('/:id')
     .patch(updateTour)
     .delete(deleteTour);
 
+router.route('/:id/reviews')
+    .post(createReview);
+
+router.route('/:id/reviews')
+    .get(getReviews);
 
     
 module.exports = router;
+

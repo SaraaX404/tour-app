@@ -3,9 +3,18 @@ import { Card, Row, Col, Typography, Spin, Rate, Image, Button, Carousel } from 
 import { RightOutlined, EnvironmentOutlined, ClockCircleOutlined, DollarOutlined } from '@ant-design/icons'
 import axios from 'axios'
 import Layout from './Layout'
-import { MapContainer, TileLayer, Circle, useMapEvents } from 'react-leaflet'
+import { MapContainer, TileLayer, Circle, useMapEvents, Marker, Popup } from 'react-leaflet'
 import 'leaflet/dist/leaflet.css'
 import { useNavigate } from 'react-router-dom'
+import L from 'leaflet'
+
+// Fix for default marker icon
+delete (L.Icon.Default.prototype as any)._getIconUrl
+L.Icon.Default.mergeOptions({
+  iconRetinaUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon-2x.png',
+  iconUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon.png',
+  shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png',
+})
 
 const { Title, Text, Paragraph } = Typography
 
@@ -29,8 +38,8 @@ function Dashboard() {
           const distance = calculateDistance(
             filterCenter?.lat,
             filterCenter?.lng,
-            dest?.latitude,
-            dest?.longitude
+            dest?.location?.lat,
+            dest?.location?.lng
           )
           return distance <= filterRadius
         })
@@ -84,8 +93,6 @@ function Dashboard() {
     )
   }
 
- 
-
   return (
     <Layout>
       {/* Hero Section */}
@@ -136,6 +143,23 @@ function Dashboard() {
                 radius={filterRadius * 1000} // Convert km to meters
                 pathOptions={{ color: 'blue', fillColor: 'blue' }}
               />
+            )}
+            {popularTours.map((tour: any) => 
+              tour.destinations.map((dest: any) => (
+                dest.location?.lat && dest.location?.lng ? (
+                  <Marker 
+                    key={dest._id}
+                    position={[dest.location.lat, dest.location.lng]}
+                  >
+                    <Popup>
+                      <div>
+                        <strong>{dest.name}</strong>
+                        <p>Part of tour: {tour.name}</p>
+                      </div>
+                    </Popup>
+                  </Marker>
+                ) : null
+              ))
             )}
           </MapContainer>
         </div>
@@ -202,7 +226,7 @@ function Dashboard() {
                     </div>
                   </div>
                 }
-                bodyStyle={{ padding: '24px' }}
+                styles={{ body: { padding: '24px' } }}
               >
                 <Title level={4} style={{ marginBottom: '16px', color: '#2c3e50', fontSize: '1.5rem' }}>{tour.name}</Title>
                 

@@ -1,11 +1,12 @@
 import { useEffect, useState } from 'react'
 import { useParams } from 'react-router-dom'
-import { Card, Carousel, Typography, Row, Col, Spin, Divider, List, Avatar } from 'antd'
+import { Card, Carousel, Typography, Row, Col, Spin, Divider, List, Avatar, Form, Input, Rate, Button, message } from 'antd'
 import { EnvironmentOutlined, HomeOutlined } from '@ant-design/icons'
 import Layout from './Layout'
 import axios from 'axios'
 
 const { Title, Paragraph } = Typography
+const { TextArea } = Input
 
 interface Destination {
   _id: string
@@ -30,17 +31,27 @@ interface Hotel {
   photos: string[]
 }
 
+interface Review {
+  _id: string
+  review: string
+  rating: number
+  createdAt: string
+}
+
 interface Tour {
   _id: string
   name: string
   description: string
   destinations: Destination[]
+  reviews?: Review[]
 }
 
 const TourDetails = () => {
   const { id } = useParams()
   const [tour, setTour] = useState<Tour | null>(null)
   const [loading, setLoading] = useState(true)
+  const [form] = Form.useForm()
+  const [reviews, setReviews] = useState<Review[]>([])
 
   useEffect(() => {
     const fetchTourDetails = async () => {
@@ -54,8 +65,38 @@ const TourDetails = () => {
       }
     }
 
+    const fetchReviews = async () => {
+      try {
+        const response = await axios.get(`http://localhost:3000/api/v1/tours/${id}/reviews`)
+        setReviews(response.data.data.reviews)
+      } catch (error) {
+        console.error('Error fetching reviews:', error)
+      }
+    }
+
     fetchTourDetails()
+    fetchReviews()
   }, [id])
+
+  const handleSubmitReview = async (values: { review: string; rating: number }) => {
+    try {
+      await axios.post(`http://localhost:3000/api/v1/tours/${id}/reviews`, {
+        review: values.review,
+        rating: values.rating,
+        tour: id
+      })
+      
+      message.success('Review submitted successfully!')
+      form.resetFields()
+      
+      // Refresh reviews after submission
+      const response = await axios.get(`http://localhost:3000/api/v1/tours/${id}/reviews`)
+      setReviews(response.data.data.reviews)
+    } catch (error) {
+      console.error('Error submitting review:', error)
+      message.error('Failed to submit review')
+    }
+  }
 
   if (loading) {
     return (
@@ -131,10 +172,57 @@ const TourDetails = () => {
             </Row>
           </Card>
         ))}
+
+        <Divider orientation="left">
+          <Title level={2}>Reviews</Title>
+        </Divider>
+
+        <Card style={{ marginBottom: '24px' }}>
+          <Form form={form} onFinish={handleSubmitReview} layout="vertical">
+            <Form.Item
+              name="rating"
+              label="Rating"
+              rules={[{ required: true, message: 'Please give a rating' }]}
+            >
+              <Rate />
+            </Form.Item>
+            <Form.Item
+              name="review"
+              label="Your Review"
+              rules={[{ required: true, message: 'Please write your review' }]}
+            >
+              <TextArea rows={4} />
+            </Form.Item>
+            <Form.Item>
+              <Button type="primary" htmlType="submit">
+                Submit Review
+              </Button>
+            </Form.Item>
+          </Form>
+        </Card>
+
+        {reviews.length > 0 && (
+          <List
+            itemLayout="horizontal"
+            dataSource={reviews}
+            renderItem={(review) => (
+              <List.Item>
+                <List.Item.Meta
+                  title={<Rate disabled defaultValue={review.rating} />}
+                  description={
+                    <>
+                      <Paragraph>{review.review}</Paragraph>
+                      <small>{new Date(review.createdAt).toLocaleDateString()}</small>
+                    </>
+                  }
+                />
+              </List.Item>
+            )}
+          />
+        )}
       </div>
     </Layout>
   )
 }
 
 export default TourDetails
-

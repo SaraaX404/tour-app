@@ -1,4 +1,5 @@
 const Tour = require('../models/tour');
+const Review = require('../models/Review');
 const catchAsync = require('../utils/catchAsync');
 
 // Get all tours
@@ -74,3 +75,19 @@ exports.deleteTour = catchAsync(async (req, res) => {
     });
 });
  
+
+exports.createReview = catchAsync(async (req, res) => {
+    const newReview = await Review.create(req.body);
+    res.status(201).json({
+        status: 'success',
+        data: { review: newReview }
+    });
+});
+
+exports.getReviews = catchAsync(async (req, res) => {
+    const reviews = await Review.find({ tour: req.params.id });
+    res.status(200).json({
+        status: 'success',
+        data: { reviews }
+    });
+});
